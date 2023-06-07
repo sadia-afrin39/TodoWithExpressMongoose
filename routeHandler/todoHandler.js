@@ -2,14 +2,18 @@ const express = require("express");
 const mongoose = require("mongoose");
 const router = express.Router();
 const todoSchema = require("../schemas/todoSchema");
+const userSchema = require("../schemas/userSchema");
 const Todo = new mongoose.model("Todo", todoSchema);
+const User = new mongoose.model("User", userSchema);
 const checkLogin = require("../middlewares/checkLogin");
 
 // GET ALL THE TODOS
 router.get("/", checkLogin, async (req, res) => {
   console.log(req.username);
   try{
-    const todos = await Todo.find({status:"active"}).select({   //.select(query helpers) //status:"active" (filtering)
+    const todos = await Todo.find({"title": "populate rational data "})
+    .populate("user","name username -_id")  //get info from User table
+    .select({   //.select(query helpers) //status:"active" (filtering)
       //Do not show these columns
         _id: 0,
         __v: 0,
@@ -85,19 +89,31 @@ router.get("/:id",checkLogin, async (req, res) => {
 });
 
 // POST A TODO
-router.post("/",checkLogin, async (req, res) => {
-    try{
-        const newTodo = new Todo(req.body);
-        await newTodo.save(); //instance method(instance banaia trpr call)
-        res.status(200).json({
-            message: "Todo was inserted successfully!",
-        });
-    }catch(err){
-        res.status(500).json({
-            error: "There was a server side error!",
-        });
-    }
-  
+router.post("/", checkLogin, async (req, res) => {
+  const newTodo = new Todo({
+    ...req.body,
+    user: req.userId
+  });
+
+  try {
+    const todo = await newTodo.save();
+    //also add in the User table
+    await User.updateOne({
+      _id: req.userId
+    }, {
+      $push: {
+        todos: todo._id
+      }
+    });
+    res.status(200).json({
+      message: "Todo was inserted successfully!",
+    });
+  } catch(err) {
+    console.log(err);
+    res.status(500).json({
+      error: "There was a server side error!",
+    });
+  }
 });
 
 // POST MULTIPLE TODO
